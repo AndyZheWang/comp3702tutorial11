@@ -47,8 +47,8 @@ def plot_training(env_name, rewards, save_dir='plots'):
     plt.title(f'Training Progress - {env_name}')
     plt.grid(True)
     os.makedirs(save_dir, exist_ok=True)
-    plt.savefig(os.path.join(save_dir, f'{env_name}_training_epsilon_decay_100000.pdf'))
-    np.save(os.path.join(save_dir, f'{env_name}_rewards_epsilon_decay_100000.npy'), np.array(rewards))
+    plt.savefig(os.path.join(save_dir, f'{env_name}_training_LunarLander-v3_hidden_size_128.pdf'))
+    np.save(os.path.join(save_dir, f'{env_name}_rewards_LunarLander-v3_hidden_size_128.npy'), np.array(rewards))
     plt.close()
 
 
@@ -100,7 +100,7 @@ print(net)
 
 buffer = ExperienceBuffer(int(params['replay_size']), device)
 
-optimizer = optim.Adam(net.parameters(), lr=params['learning_rate'])
+optimizer = optim.Adam(net.parameters(), lr=float(params['learning_rate']))
 
 frame_idx = 0
 max_reward = -math.inf

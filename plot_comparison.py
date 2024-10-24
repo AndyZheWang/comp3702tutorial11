@@ -2,9 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-rewards_1e4 = np.load('plots/CartPole-v0_rewards_1e-4.npy')
-rewards_1e3 = np.load('plots/CartPole-v0_rewards.npy')
-rewards_1e2 = np.load('plots/CartPole-v0_rewards_1e-2.npy')
+rewards_lr_0001 = np.load('plots/LunarLander-v3_rewards_LunarLander-v3_learning_rate_1e-4.npy')
+rewards_lr_001 = np.load('plots/LunarLander-v3_rewards_LunarLander-v3_learning_rate_1e-3.npy')
 
 def calculate_r100(rewards):
     r100_values = []
@@ -15,16 +14,21 @@ def calculate_r100(rewards):
             r100_values.append(np.mean(rewards[i-99:i+1]))
     return r100_values
 
-plt.figure(figsize=(10, 6))
-plt.plot(calculate_r100(rewards_1e4), label='lr=0.0001', linestyle='-')
-plt.plot(calculate_r100(rewards_1e3), label='lr=0.001', linestyle='-')
-plt.plot(calculate_r100(rewards_1e2), label='lr=0.01', linestyle='-')
+plt.figure(figsize=(12, 6))
+
+for rewards, label in [(rewards_lr_0001, 'lr=1e-4'),
+                      (rewards_lr_001, 'lr=1e-3'),
+                      ]:
+    plt.plot(rewards, alpha=0.3)
+    plt.plot(calculate_r100(rewards), label=label)
 
 plt.xlabel('Episode')
-plt.ylabel('R100 (100-episode moving average reward)')
-plt.title('Learning Rate Comparison - CartPole-v0')
+plt.ylabel('Reward')
+plt.title('Learning Rate Comparison - LunarLander-v3')
 plt.legend()
-plt.grid(True)
+plt.grid(True, alpha=0.3)
 
-plt.savefig('plots/learning_rate_comparison.pdf')
+plt.axhline(y=200, color='r', linestyle='--', label='Target Reward (200)')
+
+plt.savefig('plots/learning_rate_comparison_LunarLander.pdf')
 plt.close()
