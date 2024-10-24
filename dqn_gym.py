@@ -9,12 +9,15 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
+import matplotlib.pyplot as plt
+
 from dqn_common import epsilon_by_frame, DqnNetSingleLayer, DqnNetTwoLayers, alpha_sync, DuellingDqn
 from lib.experience_buffer import ExperienceBuffer, Experience
 import yaml
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-e", "--env", default="CartPole-v1", help="Full name of the environment, e.g. CartPole-v1, LunarLander-v3, etc.")
+parser.add_argument("-e", "--env", default="CartPole-v1",
+                    help="Full name of the environment, e.g. CartPole-v1, LunarLander-v3, etc.")
 parser.add_argument("-c", "--config_file", default="config/dqn.yaml", help="Config file with hyper-parameters")
 parser.add_argument("-n", "--network", default='s',
                     help="DQN network architecture `single-hidden` for single hidden layer, `two-hidden` for 2 hidden layers and `duelling-dqn` for duelling DQN",
@@ -22,11 +25,39 @@ parser.add_argument("-n", "--network", default='s',
 parser.add_argument("-s", "--seed", type=int, help="Manual seed (leave blank for random seed)")
 args = parser.parse_args()
 
+
+def calculate_r100(rewards):
+
+    r100_values = []
+    for i in range(len(rewards)):
+        if i < 99:
+            r100_values.append(np.mean(rewards[:i + 1]))
+        else:
+            r100_values.append(np.mean(rewards[i - 99:i + 1]))
+    return r100_values
+
+
+def plot_training(env_name, rewards, save_dir='plots'):
+
+    r100_values = calculate_r100(rewards)
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(len(r100_values)), r100_values)
+    plt.xlabel('Episode')
+    plt.ylabel('R100 (100-episode moving average reward)')
+    plt.title(f'Training Progress - {env_name}')
+    plt.grid(True)
+    os.makedirs(save_dir, exist_ok=True)
+    plt.savefig(os.path.join(save_dir, f'{env_name}_training_epsilon_decay_100000.pdf'))
+    np.save(os.path.join(save_dir, f'{env_name}_rewards_epsilon_decay_100000.npy'), np.array(rewards))
+    plt.close()
+
+
 # Hyperparameters for the requried environment
 hypers = yaml.load(open(args.config_file), Loader=yaml.FullLoader)
 
 if args.env not in hypers:
-    raise Exception(f'Hyper-parameters not found for env {args.env} - please add it to the config file (config/dqn.yaml)')
+    raise Exception(
+        f'Hyper-parameters not found for env {args.env} - please add it to the config file (config/dqn.yaml)')
 params = hypers[args.env]
 
 env = gym.make(args.env)
@@ -39,9 +70,6 @@ if args.seed is not None:
 if torch.cuda.is_available():
     device = torch.device("cuda")
     print("Training on GPU")
-# elif torch.backends.mps.is_available(): #Mac computers; (sometimes slower, e.g. 200fps vs 700fps)
-#     device = torch.device("mps")
-#     print("Training on MPS")
 else:
     device = torch.device("cpu")
     print("Training on CPU")
@@ -68,10 +96,7 @@ else:
                              hidden_size=params['hidden_size'],
                              n_actions=env.action_space.n).to(device)
 
-
 print(net)
-
-# writer = SummaryWriter(comment="-CartPoleScratch")
 
 buffer = ExperienceBuffer(int(params['replay_size']), device)
 
@@ -91,30 +116,14 @@ visualizer_on = False
 
 state, _ = env.reset()
 
+
 def calculate_loss(net, target_net):
     states_v, actions_v, rewards_v, dones_v, next_states_v = buffer.sample(params['batch_size'])
 
-    # get the Q value of the state - i.e. Q value for each action possible in that state
-    # in CartPole there are 2 actions so this will be tensor of (2, BatchSize)
     Q_s = net.forward(states_v)
-
-    # now we need the state_action_values for the actions that were selected (i.e. the action from the tuple)
-    # actions tensor is already {100, 1}, i.e. unsqeezed so we don't need to unsqueeze it again
-    # because the Q_s has one row per sample and the actions will be use as indices to choose the value from each row
-    # lastly, because the gather will return a column and we need a row, we will squeeze it
-    # gather on dim 1 means on rows
     state_action_values = Q_s.gather(1, actions_v.type(torch.int64).unsqueeze(-1)).squeeze(-1)
-
-    # now we need Q_s_prime_a - i.e. the next state values
-    # we get them from the target net
-    # because there are 2 actions, we get a tensor of (2, BatchSize)
-    # and because it's Sarsa max, we are taking the max
-    # .max(1) will find maximum for each row and return a tuple (values, indices) - we need values so get<0>
     next_state_values = target_net.forward(next_states_v).max(1)[0]
-
-    # calculate expected action values - discounted value of the state + reward
     expected_state_action_values = rewards_v + next_state_values.detach() * params['gamma'] * (1 - dones_v)
-
     loss = F.mse_loss(state_action_values, expected_state_action_values)
 
     optimizer.zero_grad()
@@ -143,7 +152,6 @@ while True:
         q_vals_v = net(state_v)
         _, act_v = torch.max(q_vals_v, dim=1)
         action = act_v.item()
-        # print(action)
 
     # take step in the environment
     new_state, reward, terminated, truncated, _ = env.step(action)
@@ -169,7 +177,8 @@ while True:
             r100 = np.mean(all_rewards[-100:])
             l100 = np.mean(losses[-100:])
             fps = (frame_idx - episode_frame) / (time.time() - episode_start)
-            print(f"Frame: {frame_idx}: Episode: {episode_no}, R100: {r100: .2f}, MaxR: {max_reward: .2f}, R: {episode_reward: .2f}, FPS: {fps: .1f}, L100: {l100: .2f}, Epsilon: {epsilon: .4f}")
+            print(
+                f"Frame: {frame_idx}: Episode: {episode_no}, R100: {r100: .2f}, MaxR: {max_reward: .2f}, R: {episode_reward: .2f}, FPS: {fps: .1f}, L100: {l100: .2f}, Epsilon: {epsilon: .4f}")
 
             # visualize the training when reached 95% of the target R100
             if not visualizer_on and r100 > 0.95 * params['stopping_reward']:
@@ -177,7 +186,6 @@ while True:
                 env.reset()
                 env.render()
                 visualizer_on = True
-
 
         episode_reward = 0
         episode_frame = frame_idx
@@ -189,7 +197,6 @@ while True:
     # do the learning
     loss = calculate_loss(net, target_net)
     losses.append(loss.item())
-
 
     if params['alpha_sync']:
         alpha_sync(net, target_net, alpha=1 - params['tau'])
@@ -204,8 +211,10 @@ while True:
             os.makedirs(params['save_path'])
         torch.save(net.state_dict(), os.path.join(params['save_path'], name))
 
+        plot_training(args.env, all_rewards)
         break
 
     if frame_idx > params['max_frames']:
         print(f"Ran out of time at {time.time() - start}")
+        plot_training(args.env, all_rewards)
         break

@@ -34,7 +34,7 @@ CartPole-v1:
   replay_size: 1.0e+6
   replay_size_start: 5000
 
-  epsilon_decay: 50000
+  epsilon_decay: 100000
   epsilon_final: 0.001
   epsilon_start: 0.250
 
