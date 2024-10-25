@@ -48,17 +48,15 @@ TARGET_NET_SYNC = 1e3
 
 STOP_REWARD = 195
 
-ENV = "CartPole-v0" #start by using v0 which is faster to solve (instead of v1)
+ENV = "CartPole-v0"
 SAVED_MODELS_PATH = 'saved_models'
 
 env = gym.make(ENV)
-# env.render()
 
 net = DqnNet(obs_size=env.observation_space.shape[0], hidden_size=HIDDEN_SIZE, n_actions=env.action_space.n).to(device)
 target_net = DqnNet(obs_size=env.observation_space.shape[0], hidden_size=HIDDEN_SIZE, n_actions=env.action_space.n).to(device)
 print(net)
 
-# writer = SummaryWriter(comment="-CartPoleScratch")
 
 buffer = ExperienceBuffer(REPLAY_SIZE, device)
 
